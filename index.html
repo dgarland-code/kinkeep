@@ -238,7 +238,36 @@ function knownFor(p){
   return 'known '+(y<1.5?'1 yr':Math.round(y)+' yrs');
 }
 function kidsSummary(p){if(!p.kids||!p.kids.length)return'';const n=p.kids.length;return `${n} ${n===1?'kid':'kids'} · ages ${p.kids.slice().sort((a,b)=>a-b).join(', ')}`;}
-function smsURL(body){return 'sms:?&body='+encodeURIComponent(body||'');}
+function smsURL(body,phone){
+  const num=(phone||'').replace(/[^0-9+]/g,'');
+  return num ? `sms:${num}?&body=${encodeURIComponent(body||'')}` : `sms:?&body=${encodeURIComponent(body||'')}`;
+}
+// Builds a vCard so a number/address can be handed to the phone's own Contacts app in one tap.
+function vCardFor(p){
+  const nameOnly=p.name.replace(/^The /,'').replace(/ Family$/,'');
+  let v='BEGIN:VCARD\nVERSION:3.0\n';
+  v+=`N:;${nameOnly};;;\nFN:${p.name}\n`;
+  if(p.phone)v+=`TEL;TYPE=CELL:${p.phone}\n`;
+  if(p.address)v+=`ADR;TYPE=HOME:;;${p.address};;;;\n`;
+  v+='END:VCARD\n';
+  return v;
+}
+async function saveToContacts(p){
+  const vcard=vCardFor(p);
+  try{
+    const file=new File([vcard],`${p.name.replace(/[^\w\- ]/g,'')}.vcf`,{type:'text/vcard'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:p.name});
+      return;
+    }
+  }catch(e){/* fall through to download */}
+  try{
+    const url=URL.createObjectURL(new Blob([vcard],{type:'text/vcard'}));
+    const a=document.createElement('a');a.href=url;a.download=`${p.name.replace(/[^\w\- ]/g,'')}.vcf`;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+  }catch(e){alert("Couldn't create the contact file on this device.");}
+}
 
 // ---------- Discussion tips: gentle, offline, keyed to what you've recorded ----------
 // Soft suggestions for building trust over time. Not scripts — nudges.
@@ -292,17 +321,18 @@ function discussionTip(p){
 async function importContact(){
   if('contacts' in navigator && 'ContactsManager' in window){
     try{
-      const props=['name'];
+      const props=['name','tel'];
       const opts={multiple:false};
       const sel=await navigator.contacts.select(props,opts);
       if(sel && sel.length){
         const nm=(sel[0].name&&sel[0].name[0])||'';
-        closeAll();openEdit(null,nm);
+        const ph=(sel[0].tel&&sel[0].tel[0])||'';
+        closeAll();openEdit(null,nm,ph);
         return;
       }
     }catch(e){/* user cancelled or blocked */}
   } else {
-    alert("Your phone's browser doesn't allow picking contacts here (Apple blocks it in-browser). Add the name manually — type it exactly as it appears in your contacts so texting finds them.");
+    alert("Your phone's browser doesn't allow picking contacts here (Apple blocks it in-browser). Add their name and number manually below.");
     openEdit();
   }
 }
@@ -387,7 +417,7 @@ function touchCard(p){
       <div class="pmeta">last reached out ${fmtLast(p)} ago</div>
       <div class="tip">💬 ${discussionTip(p)}</div>
     </div>
-    <a href="${smsURL(body)}" onclick="event.stopPropagation();logQuick('${p.id}','Texted to reconnect')" style="text-decoration:none;background:var(--sage);color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;align-self:center">Text</a>
+    <a href="${smsURL(body,p.phone)}" onclick="event.stopPropagation();logQuick('${p.id}','Texted to reconnect')" style="text-decoration:none;background:var(--sage);color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;align-self:center">Text</a>
   </div>`;
 }
 
@@ -549,23 +579,26 @@ function openDetail(id){
       </div>
 
       <div class="contact-row">
-        <a href="${smsURL('')}" onclick="logQuick('${p.id}','Sent a text')">
+        <a href="${smsURL('',p.phone)}" onclick="logQuick('${p.id}','Sent a text')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.5 7.5L4 20l1-4.5A8.5 8.5 0 1 1 21 11.5z"/></svg>Text</a>
-        <a href="${smsURL(thankBody)}" onclick="logQuick('${p.id}','Sent a thank-you')">
+        <a href="${smsURL(thankBody,p.phone)}" onclick="logQuick('${p.id}','Sent a thank-you')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-9C1 9 2.5 5.5 6 5.5c2 0 3 1.2 4 2.5 1-1.3 2-2.5 4-2.5 3.5 0 5 3.5 3.5 6.5C19 16.5 12 21 12 21z"/></svg>Thank you</a>
-        ${p.type==='family'?`<a href="${smsURL(playdateBody)}" onclick="logQuick('${p.id}','Proposed a playdate')">
+        ${p.type==='family'?`<a href="${smsURL(playdateBody,p.phone)}" onclick="logQuick('${p.id}','Proposed a playdate')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="2.5"/><circle cx="16" cy="9" r="2.5"/><path d="M4 19c0-2.5 1.8-4 4-4h8c2.2 0 4 1.5 4 4"/></svg>Playdate</a>`:''}
       </div>
-      <div class="contact-hint">Buttons open Messages — pick ${p.name.replace(/^The /,'')} from your phone's contacts.</div>
+      <div class="contact-hint">${p.phone?'Text goes straight to '+esc(p.name.replace(/^The /,''))+'.':'No number saved — you\'ll pick '+esc(p.name.replace(/^The /,''))+' from your contacts in Messages.'}</div>
+      ${!p.phone?`<button class="btn ghost" style="margin-top:8px" onclick="closeAll();openEdit('${p.id}')">Add their number</button>`:''}
+      <button class="logbtn" style="margin-top:10px;border-style:solid;background:var(--card);color:var(--ink)" onclick="saveToContacts('${p.id}')">📇 Save to phone contacts</button>
 
       <div class="tip-detail"><b>A thought for next time:</b><br>${discussionTip(p)}</div>
 
       <div style="margin-top:20px">
         <div class="kv"><span>Met</span><b>${fmtDate(p.metDate)}</b></div>
-        ${p.work?`<div class="kv"><span>Work</span><b style="max-width:62%">${p.work}</b></div>`:''}
+        ${p.phone?`<div class="kv"><span>Phone</span><b>${esc(p.phone)}</b></div>`:''}
+        ${p.work?`<div class="kv"><span>Work</span><b style="max-width:62%">${esc(p.work)}</b></div>`:''}
         ${p.type==='family'&&p.kids&&p.kids.length?`<div class="kv"><span>Kids</span><b>${kidsSummary(p).replace(/^\d+ kids? · /,'')} <span style="color:var(--ink-soft)">(${p.kids.length})</span></b></div>`:''}
-        ${p.address?`<div class="kv"><span>Address ${p.type==='elder'?'<span style="font-size:10px;background:var(--sage-soft);color:var(--sage);padding:2px 7px;border-radius:10px;font-weight:600">for cards</span>':''}</span><b style="max-width:60%">${p.address}</b></div>`:''}
-        <div class="kv"><span>Tags</span><b style="max-width:60%">${p.interests.join(', ')||'—'}</b></div>
+        ${p.address?`<div class="kv"><span>Address ${p.type==='elder'?'<span style="font-size:10px;background:var(--sage-soft);color:var(--sage);padding:2px 7px;border-radius:10px;font-weight:600">for cards</span>':''}</span><b style="max-width:60%">${esc(p.address)}</b></div>`:''}
+        <div class="kv"><span>Tags</span><b style="max-width:60%">${esc(p.interests.join(', ')||'—')}</b></div>
         <div class="kv"><span>Last logged</span><b>${fmtLast(p)} ago</b></div>
       </div>
 
@@ -599,9 +632,9 @@ function logNote(id){
 
 // ---------- Add / Edit sheet ----------
 let editingId=null,formType='family',formInts=[],formKids=[];
-function openEdit(id,prefillName){
+function openEdit(id,prefillName,prefillPhone){
   editingId=id||null;
-  const p=id?people.find(x=>x.id===id):{name:prefillName||'',type:'family',metDate:Date.now(),work:'',address:'',kids:[],interests:[]};
+  const p=id?people.find(x=>x.id===id):{name:prefillName||'',type:'family',metDate:Date.now(),work:'',phone:prefillPhone||'',address:'',kids:[],interests:[]};
   formType=p.type;formInts=[...p.interests];formKids=[...(p.kids||[])];
   const metStr=new Date(p.metDate||Date.now()).toISOString().slice(0,10);
   const c=document.getElementById('sheet-content');
@@ -610,7 +643,10 @@ function openEdit(id,prefillName){
     <div class="sheet-body">
       <label>Name</label>
       <input id="f-name" value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="e.g. The Alvarez Family, Miss Dorothy">
-      <div class="hint">Type it exactly as it appears in your phone's contacts — that's how texting finds them.</div>
+
+      <label>Phone <span style="font-weight:400;color:var(--ink-soft)">— the number they gave you</span></label>
+      <input id="f-phone" value="${(p.phone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="e.g. 555-0142">
+      <div class="hint">Saved here so Text goes straight to them, one tap, no searching. You can also save it to your phone's own Contacts below once you've added them.</div>
 
       <label>They are…</label>
       <div class="tagpick" id="f-type">
@@ -672,6 +708,7 @@ function removeKid(idx){formKids.splice(idx,1);renderKids();}
 async function saveForm(){
   const name=document.getElementById('f-name').value.trim();
   if(!name){alert('Please enter a name.');return;}
+  const phone=document.getElementById('f-phone').value.trim();
   const metVal=document.getElementById('f-met').value;
   const metDate=metVal?new Date(metVal+'T12:00:00').getTime():Date.now();
   const work=document.getElementById('f-work').value.trim();
@@ -679,10 +716,10 @@ async function saveForm(){
   const kids=formType==='family'?[...formKids]:[];
   if(editingId){
     const p=people.find(x=>x.id===editingId);
-    Object.assign(p,{name,type:formType,metDate,work,address,kids,interests:[...formInts]});
+    Object.assign(p,{name,phone,type:formType,metDate,work,address,kids,interests:[...formInts]});
     await savePerson(p);
   } else {
-    const p={id:'p'+Date.now(),name,type:formType,metDate,work,address,kids,interests:[...formInts],lastContact:Date.now(),logs:[]};
+    const p={id:'p'+Date.now(),name,phone,type:formType,metDate,work,address,kids,interests:[...formInts],lastContact:Date.now(),logs:[]};
     people.push(p);await savePerson(p);
   }
   closeAll();render();
@@ -716,6 +753,7 @@ async function mergeIncoming(incoming){
     }else{
       ex.lastContact=Math.max(ex.lastContact||0,inc.lastContact||0);
       if(inc.metDate)ex.metDate=Math.min(ex.metDate||inc.metDate,inc.metDate);
+      if(!ex.phone&&inc.phone)ex.phone=inc.phone;
       if(!ex.work&&inc.work)ex.work=inc.work;
       if(!ex.address&&inc.address)ex.address=inc.address;
       if((!ex.kids||!ex.kids.length)&&inc.kids&&inc.kids.length)ex.kids=inc.kids;
