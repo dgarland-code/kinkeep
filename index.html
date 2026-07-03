@@ -288,40 +288,56 @@ function smsURL(body,phone){
   const num=(phone||'').replace(/[^0-9+]/g,'');
   return num ? `sms:${num}?&body=${encodeURIComponent(body||'')}` : `sms:?&body=${encodeURIComponent(body||'')}`;
 }
-// Builds a vCard so a number/address can be handed to the phone's own Contacts app in one tap.
-function vCardFor(p){
-  const nameOnly=p.name.replace(/^The /,'').replace(/ Family$/,'');
+// Builds one vCard block for a single person (name + optional phone/address).
+function vCardBlock(fullName,phone,address){
+  const parts=fullName.trim().split(/\s+/);
+  const first=parts.slice(0,-1).join(' ')||fullName;
+  const last=parts.length>1?parts[parts.length-1]:'';
   let v='BEGIN:VCARD\nVERSION:3.0\n';
-  v+=`N:;${nameOnly};;;\nFN:${p.name}\n`;
-  if(p.phone)v+=`TEL;TYPE=CELL:${p.phone}\n`;
-  if(p.address)v+=`ADR;TYPE=HOME:;;${p.address};;;;\n`;
+  v+=`N:${last};${first};;;\nFN:${fullName}\n`;
+  if(phone)v+=`TEL;TYPE=CELL:${phone}\n`;
+  if(address)v+=`ADR;TYPE=HOME:;;${address};;;;\n`;
   v+='END:VCARD\n';
   return v;
+}
+// Decide which contact cards to create for a person. Families with both parents named → one card each.
+function contactCardsFor(p){
+  const cards=[];
+  if(p.type==='family'){
+    if(p.motherName)cards.push({name:p.motherName,phone:p.motherPhone||'',address:p.address});
+    if(p.fatherName)cards.push({name:p.fatherName,phone:p.fatherPhone||'',address:p.address});
+    // If neither parent was named but a household name exists, fall back to one family card.
+    if(!cards.length)cards.push({name:p.name,phone:p.motherPhone||p.fatherPhone||p.phone||'',address:p.address});
+  } else {
+    cards.push({name:p.name,phone:p.phone||'',address:p.address});
+  }
+  return cards;
 }
 async function saveToContacts(id){
   const p=people.find(x=>x.id===id);
   if(!p){alert("Couldn't find that person.");return;}
-  const target={name:contactName(p),phone:contactPhone(p),address:p.address};
-  const filename=`${target.name.replace(/[^\w\- ]/g,'')}.vcf`;
-  const vcard=vCardFor(target);
+  const cards=contactCardsFor(p);
+  const vcard=cards.map(c=>vCardBlock(c.name,c.phone,c.address)).join('');
+  const label=cards.length>1?`${cards.map(c=>c.name).join(' & ')}`:cards[0].name;
+  const filename=`${label.replace(/[^\w\- ]/g,'')}.vcf`;
   try{
     if(navigator.canShare){
       const file=new File([vcard],filename,{type:'text/vcard'});
       if(navigator.canShare({files:[file]})){
-        await navigator.share({files:[file],title:target.name});
-        return; // user completed (or cancelled) the OS share sheet — either way, done here
+        await navigator.share({files:[file],title:label});
+        return;
       }
     }
   }catch(e){
-    if(e && e.name==='AbortError')return; // they backed out of the share sheet on purpose
-    // otherwise fall through to the download method below
+    if(e && e.name==='AbortError')return;
   }
   try{
     const url=URL.createObjectURL(new Blob([vcard],{type:'text/vcard'}));
     const a=document.createElement('a');a.href=url;a.download=filename;
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),4000);
-    alert(`Saved "${filename}" to your Downloads. Open your notification shade (or the Downloads app) and tap it once — your phone will offer to add ${target.name} to Contacts.`);
+    const who=cards.length>1?`${cards.length} contacts (${label})`:label;
+    alert(`Saved "${filename}" to your Downloads. Open your notification shade (or the Downloads app) and tap it once — your phone will offer to add ${who} to Contacts.`);
   }catch(e){
     alert("Couldn't create the contact file on this device. You can add them manually in your Contacts app instead.");
   }
@@ -702,26 +718,47 @@ function logNote(id){
 
 // ---------- Add / Edit sheet ----------
 let editingId=null,formType='family',formInts=[],formKids=[];
-function openEdit(id,prefillName,prefillPhone){
+function openEdit(id,prefillName,prefillPhone,fromDraft){
   editingId=id||null;
-  const p=id?people.find(x=>x.id===id):{name:prefillName||'',type:'family',metDate:Date.now(),work:'',phone:prefillPhone||'',address:'',kids:[],interests:[],motherName:'',motherPhone:'',fatherName:'',fatherPhone:''};
+  let p;
+  if(fromDraft&&_draftOverride){
+    p=_draftOverride;
+  } else {
+    p=id?people.find(x=>x.id===id):{name:prefillName||'',type:'family',metDate:Date.now(),work:'',phone:prefillPhone||'',address:'',kids:[],interests:[],motherName:'',motherPhone:'',fatherName:'',fatherPhone:''};
+  }
   formType=p.type;formInts=[...p.interests];formKids=[...(p.kids||[])];
   const metStr=new Date(p.metDate||Date.now()).toISOString().slice(0,10);
   const c=document.getElementById('sheet-content');
   c.innerHTML=`
     <div class="sheet-head"><h2>${id?'Edit':'New person'}</h2><button class="x" onclick="closeAll()">×</button></div>
     <div class="sheet-body">
-      <label>Name</label>
-      <input id="f-name" value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="e.g. The Alvarez Family, Miss Dorothy">
-
-      <label>Phone <span style="font-weight:400;color:var(--ink-soft)">— the number they gave you</span></label>
-      <input id="f-phone" value="${(p.phone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="e.g. 555-0142">
-      <div class="hint">Saved here so Text goes straight to them, one tap, no searching. You can also save it to your phone's own Contacts below once you've added them.</div>
-
-      <label>They are…</label>
+      <label style="margin-top:0">They are…</label>
       <div class="tagpick" id="f-type">
         <button data-t="family" class="${formType==='family'?'sel':''}">Family with kids</button>
         <button data-t="elder" class="${formType==='elder'?'sel':''}">Elder who loves us</button>
+      </div>
+
+      <label>${formType==='family'?'Family name':'Name'}</label>
+      <input id="f-name" value="${(p.name||'').replace(/"/g,'&quot;')}" placeholder="${formType==='family'?'e.g. The Alvarez Family':'e.g. Miss Dorothy'}">
+
+      <div id="parents-block" style="${formType==='family'?'':'display:none'}">
+        <label>Mother <span style="font-weight:400;color:var(--ink-soft)">— name & number</span></label>
+        <div class="row">
+          <input id="f-motherName" value="${(p.motherName||'').replace(/"/g,'&quot;')}" placeholder="Name">
+          <input id="f-motherPhone" value="${(p.motherPhone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="Phone">
+        </div>
+        <label>Father <span style="font-weight:400;color:var(--ink-soft)">— name & number</span></label>
+        <div class="row">
+          <input id="f-fatherName" value="${(p.fatherName||'').replace(/"/g,'&quot;')}" placeholder="Name">
+          <input id="f-fatherPhone" value="${(p.fatherPhone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="Phone">
+        </div>
+        <div class="hint">Fill in whichever you know. Set who's using this phone (⚙ icon, top) and Kinkeep defaults to texting and reminding you about the same-gender parent. Saving to your phone's Contacts creates a separate card for each.</div>
+      </div>
+
+      <div id="elderphone-block" style="${formType==='elder'?'':'display:none'}">
+        <label>Phone <span style="font-weight:400;color:var(--ink-soft)">— the number they gave you</span></label>
+        <input id="f-phone" value="${(p.phone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="e.g. 555-0142">
+        <div class="hint">Saved here so Text goes straight to them, one tap, no searching.</div>
       </div>
 
       <label>Date we met</label>
@@ -741,20 +778,6 @@ function openEdit(id,prefillName,prefillPhone){
         <div class="hint">Add one per child, their age today. Kinkeep ages them automatically after that — no need to update it yourself.</div>
       </div>
 
-      <div id="parents-block" style="${formType==='family'?'':'display:none'}">
-        <label>Mother <span style="font-weight:400;color:var(--ink-soft)">— optional</span></label>
-        <div class="row">
-          <input id="f-motherName" value="${(p.motherName||'').replace(/"/g,'&quot;')}" placeholder="Name">
-          <input id="f-motherPhone" value="${(p.motherPhone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="Phone">
-        </div>
-        <label>Father <span style="font-weight:400;color:var(--ink-soft)">— optional</span></label>
-        <div class="row">
-          <input id="f-fatherName" value="${(p.fatherName||'').replace(/"/g,'&quot;')}" placeholder="Name">
-          <input id="f-fatherPhone" value="${(p.fatherPhone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="Phone">
-        </div>
-        <div class="hint">Fill in whichever you know. Set who's using this phone (⚙ icon, top) and Kinkeep will default to texting and reminding you about the same-gender parent.</div>
-      </div>
-
       <label>Address <span style="font-weight:400;color:var(--ink-soft)">— for thank-you cards (optional)</span></label>
       <input id="f-address" value="${(p.address||'').replace(/"/g,'&quot;')}" placeholder="e.g. 44 Linden Ave, Apt 2B">
 
@@ -768,10 +791,20 @@ function openEdit(id,prefillName,prefillPhone){
     </div>`;
 
   document.querySelectorAll('#f-type button').forEach(b=>b.onclick=()=>{
-    formType=b.dataset.t;
-    document.querySelectorAll('#f-type button').forEach(x=>x.classList.toggle('sel',x===b));
-    document.getElementById('kids-block').style.display=formType==='family'?'':'none';
-    document.getElementById('parents-block').style.display=formType==='family'?'':'none';
+    const newType=b.dataset.t;
+    if(newType===formType)return;
+    formType=newType;
+    // preserve whatever's been typed so switching type doesn't lose it
+    const g=id=>{const el=document.getElementById(id);return el?el.value:'';};
+    const draft={
+      name:g('f-name'),phone:g('f-phone'),
+      motherName:g('f-motherName'),motherPhone:g('f-motherPhone'),
+      fatherName:g('f-fatherName'),fatherPhone:g('f-fatherPhone'),
+      metDate:g('f-met')?new Date(g('f-met')+'T12:00:00').getTime():Date.now(),
+      work:g('f-work'),address:g('f-address'),
+      type:formType,kids:[...formKids],interests:[...formInts]
+    };
+    reopenEditWithDraft(editingId,draft);
   });
   document.querySelectorAll('#f-int button').forEach(b=>b.onclick=()=>{
     const i=b.dataset.i;formInts=formInts.includes(i)?formInts.filter(x=>x!==i):[...formInts,i];b.classList.toggle('sel');
@@ -779,6 +812,15 @@ function openEdit(id,prefillName,prefillPhone){
   renderKids();
   openSheet();
 }
+// Rebuilds the edit sheet from an in-progress draft (used when the Family/Elder toggle flips mid-entry).
+function reopenEditWithDraft(id,draft){
+  const c=document.getElementById('sheet-content');
+  // temporarily stash the draft as the "person" openEdit reads from
+  _draftOverride=draft;
+  openEdit(id,null,null,true);
+  _draftOverride=null;
+}
+let _draftOverride=null;
 function renderKids(){
   const el=document.getElementById('kids-list');if(!el)return;
   el.innerHTML=formKids.length?formKids.map((k,idx)=>`<span class="kid-tag">age ${currentKidAge(k)}<button onclick="removeKid(${idx})">×</button></span>`).join(''):'<span class="hint" style="margin:0">No kids added yet.</span>';
@@ -791,18 +833,21 @@ function addKid(){
 function removeKid(idx){formKids.splice(idx,1);renderKids();}
 
 async function saveForm(){
-  const name=document.getElementById('f-name').value.trim();
+  const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const name=gv('f-name');
   if(!name){alert('Please enter a name.');return;}
-  const phone=document.getElementById('f-phone').value.trim();
   const metVal=document.getElementById('f-met').value;
   const metDate=metVal?new Date(metVal+'T12:00:00').getTime():Date.now();
-  const work=document.getElementById('f-work').value.trim();
-  const address=document.getElementById('f-address').value.trim();
-  const kids=formType==='family'?[...formKids]:[];
-  const motherName=document.getElementById('f-motherName').value.trim();
-  const motherPhone=document.getElementById('f-motherPhone').value.trim();
-  const fatherName=document.getElementById('f-fatherName').value.trim();
-  const fatherPhone=document.getElementById('f-fatherPhone').value.trim();
+  const work=gv('f-work');
+  const address=gv('f-address');
+  const isFam=formType==='family';
+  const kids=isFam?[...formKids]:[];
+  const motherName=isFam?gv('f-motherName'):'';
+  const motherPhone=isFam?gv('f-motherPhone'):'';
+  const fatherName=isFam?gv('f-fatherName'):'';
+  const fatherPhone=isFam?gv('f-fatherPhone'):'';
+  // Elders use the single phone field; families keep no generic phone (their numbers live on the parents).
+  const phone=isFam?'':gv('f-phone');
   if(editingId){
     const p=people.find(x=>x.id===editingId);
     Object.assign(p,{name,phone,type:formType,metDate,work,address,kids,interests:[...formInts],motherName,motherPhone,fatherName,fatherPhone});
