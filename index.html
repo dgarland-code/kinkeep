@@ -26,6 +26,8 @@ h1,h2,h3{font-family:Georgia,"Times New Roman",serif;}
 header{padding:22px 20px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:40;}
 .share-btn{position:absolute;top:20px;right:18px;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--sage);cursor:pointer;display:flex;align-items:center;justify-content:center;}
 .share-btn svg{width:20px;height:20px;}
+.settings-btn{position:absolute;top:20px;right:66px;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--plum);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.settings-btn svg{width:20px;height:20px;}
 .share-block{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:14px;}
 .share-block h3{font-size:16px;margin-bottom:4px;}
 .share-block p{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:10px;}
@@ -152,6 +154,9 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--sage);}
   <button class="share-btn" onclick="openShareSheet()" aria-label="Back up to other phone">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.8l7.4-4.3M8.3 13.2l7.4 4.3"/></svg>
   </button>
+  <button class="settings-btn" onclick="openSettingsSheet()" aria-label="Who's using this phone">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M3 12h2.2M18.8 12H21M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/></svg>
+  </button>
   <div class="brand">Kin<em>keep</em></div>
   <div class="tag">The people your family is growing with.</div>
 </header>
@@ -190,6 +195,10 @@ let myKids=[3,5];
 // ---------- Storage (phone-native; persists offline as an installed app) ----------
 const STORE_KEY='kinkeep.people.v1';
 const KIDS_KEY='kinkeep.mykids.v1';
+const ROLE_KEY='kinkeep.myrole.v1';
+let myRole=null;
+function loadRole(){try{myRole=localStorage.getItem(ROLE_KEY)||null;}catch(e){myRole=null;}}
+function setRole(r){myRole=r||null;try{if(r)localStorage.setItem(ROLE_KEY,r);else localStorage.removeItem(ROLE_KEY);}catch(e){}}
 async function load(){
   try{
     const raw=localStorage.getItem(STORE_KEY);
@@ -197,6 +206,7 @@ async function load(){
     else{people=seed();persist();}
     const rk=localStorage.getItem(KIDS_KEY);
     if(rk)myKids=JSON.parse(rk);
+    loadRole();
   }catch(e){people=seed();}
   render();
 }
@@ -209,11 +219,11 @@ async function deletePerson(id){people=people.filter(p=>p.id!==id);persist();}
 function seed(){
   const now=Date.now(),D=86400000,Y=365*D;
   return [
-    {id:'p1',sample:true,name:'The Alvarez Family',type:'family',metDate:now-40*D,work:'She teaches 2nd grade; he runs a landscaping crew',address:'',kids:[3,5],interests:['Playdates','Neighbors'],lastContact:now-3*D,logs:[{t:now-3*D,note:'Met at the splash pad. Their girl is same age as ours.'}]},
+    {id:'p1',sample:true,name:'The Alvarez Family',type:'family',metDate:now-40*D,work:'She teaches 2nd grade; he runs a landscaping crew',address:'',kids:[3,5],interests:['Playdates','Neighbors'],lastContact:now-3*D,motherName:'Sarah Alvarez',motherPhone:'',fatherName:'Mike Alvarez',fatherPhone:'',logs:[{t:now-3*D,note:'Met at the splash pad. Their girl is same age as ours.'}]},
     {id:'p2',sample:true,name:'Miss Dorothy',type:'elder',metDate:now-90*D,work:'Retired church organist',address:'44 Linden Ave, Apt 2B',kids:[],interests:['Grandparent-age','Gives gifts','Church'],lastContact:now-1*D,logs:[{t:now-1*D,note:'Left cookies on our porch again. Send thank-you card.'}]},
-    {id:'p3',sample:true,name:'The Okafor Family',type:'family',metDate:now-60*D,work:'Both physicians at the regional hospital',address:'',kids:[2,4],interests:['Playdates','Music'],lastContact:now-32*D,logs:[{t:now-32*D,note:'Talked about doing a music class together.'}]},
+    {id:'p3',sample:true,name:'The Okafor Family',type:'family',metDate:now-60*D,work:'Both physicians at the regional hospital',address:'',kids:[2,4],interests:['Playdates','Music'],lastContact:now-32*D,motherName:'Amara Okafor',motherPhone:'',fatherName:'Chinedu Okafor',fatherPhone:'',logs:[{t:now-32*D,note:'Talked about doing a music class together.'}]},
     {id:'p4',sample:true,name:'Walt & Rosemary',type:'elder',metDate:now-120*D,work:'Retired; Walt was a mailman for 30 years',address:'12 Old Mill Rd',kids:[],interests:['Grandparent-age','Gardening'],lastContact:now-48*D,logs:[]},
-    {id:'p5',sample:true,name:'The Bianchi Family',type:'family',metDate:now-20*D,work:'She owns the bakery downtown; he does IT from home',address:'',kids:[4],interests:['Playdates','Baking'],lastContact:now-9*D,logs:[]},
+    {id:'p5',sample:true,name:'The Bianchi Family',type:'family',metDate:now-20*D,work:'She owns the bakery downtown; he does IT from home',address:'',kids:[4],interests:['Playdates','Baking'],lastContact:now-9*D,motherName:'Lucia Bianchi',motherPhone:'',fatherName:'Marco Bianchi',fatherPhone:'',logs:[]},
   ];
 }
 async function removeSamples(){
@@ -225,6 +235,23 @@ async function removeSamples(){
 function daysSince(t){return Math.floor((Date.now()-t)/86400000);}
 function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 let searchQ='';
+// Prefers the same-gender parent's name/number for families, when "who's using this phone" is set.
+// Never hides the other parent's info — just what's shown/addressed by default. No effect on Elders.
+function contactName(p){
+  if(p.type==='family'&&myRole){
+    const pref=myRole==='father'?p.fatherName:p.motherName;
+    if(pref&&pref.trim())return pref.trim();
+  }
+  return p.name;
+}
+function contactPhone(p){
+  if(p.type==='family'&&myRole){
+    const same=myRole==='father'?p.fatherPhone:p.motherPhone;
+    const other=myRole==='father'?p.motherPhone:p.fatherPhone;
+    return (same&&same.trim())||p.phone||(other&&other.trim())||'';
+  }
+  return p.phone||'';
+}
 function initials(n){const w=n.replace(/^The /,'').split(/[\s&]+/).filter(Boolean);return(w[0]?.[0]||'')+(w[1]?.[0]||'');}
 function staleThreshold(type){return type==='elder'?14:30;}
 function isStale(p){return daysSince(p.lastContact)>=staleThreshold(p.type);}
@@ -255,13 +282,14 @@ function vCardFor(p){
 async function saveToContacts(id){
   const p=people.find(x=>x.id===id);
   if(!p){alert("Couldn't find that person.");return;}
-  const filename=`${p.name.replace(/[^\w\- ]/g,'')}.vcf`;
-  const vcard=vCardFor(p);
+  const target={name:contactName(p),phone:contactPhone(p),address:p.address};
+  const filename=`${target.name.replace(/[^\w\- ]/g,'')}.vcf`;
+  const vcard=vCardFor(target);
   try{
     if(navigator.canShare){
       const file=new File([vcard],filename,{type:'text/vcard'});
       if(navigator.canShare({files:[file]})){
-        await navigator.share({files:[file],title:p.name});
+        await navigator.share({files:[file],title:target.name});
         return; // user completed (or cancelled) the OS share sheet — either way, done here
       }
     }
@@ -274,7 +302,7 @@ async function saveToContacts(id){
     const a=document.createElement('a');a.href=url;a.download=filename;
     document.body.appendChild(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),4000);
-    alert(`Saved "${filename}" to your Downloads. Open your notification shade (or the Downloads app) and tap it once — your phone will offer to add ${p.name} to Contacts.`);
+    alert(`Saved "${filename}" to your Downloads. Open your notification shade (or the Downloads app) and tap it once — your phone will offer to add ${target.name} to Contacts.`);
   }catch(e){
     alert("Couldn't create the contact file on this device. You can add them manually in your Contacts app instead.");
   }
@@ -382,7 +410,7 @@ function renderPeople(){
 function matchesSearch(p){
   if(!searchQ.trim())return true;
   const q=searchQ.trim().toLowerCase();
-  return [p.name,p.work,p.address,(p.interests||[]).join(' '),(p.logs||[]).map(l=>l.note).join(' ')].join(' ').toLowerCase().includes(q);
+  return [p.name,p.motherName,p.fatherName,p.work,p.address,(p.interests||[]).join(' '),(p.logs||[]).map(l=>l.note).join(' ')].join(' ').toLowerCase().includes(q);
 }
 function peopleListHTML(){
   const groups={elder:[],family:[]};
@@ -400,10 +428,13 @@ function peopleListHTML(){
 function renderPeopleList(){const el=document.getElementById('people-list');if(el)el.innerHTML=peopleListHTML();}
 function personCard(p){
   const meta=p.type==='family'&&p.kids&&p.kids.length?kidsSummary(p):(p.interests.slice(0,3).join(' · ')||'No tags yet');
+  const cName=contactName(p);
+  const famNote=(p.type==='family'&&cName!==p.name)?`<div style="font-size:10.5px;color:var(--ink-soft);margin-top:1px">${esc(p.name)}</div>`:'';
   return `<div class="person" onclick="openDetail('${p.id}')">
-    <div class="avatar" style="background:${PALETTE[p.type]}">${initials(p.name)}</div>
+    <div class="avatar" style="background:${PALETTE[p.type]}">${initials(cName)}</div>
     <div class="pmain">
-      <div class="pname">${esc(p.name)} <span class="chip ${p.type}">${TYPES[p.type]}</span></div>
+      <div class="pname">${esc(cName)} <span class="chip ${p.type}">${TYPES[p.type]}</span></div>
+      ${famNote}
       <div class="pmeta">${meta}</div>
     </div>
     <div class="last ok"><span class="num">${fmtLast(p)}</span><small>ago</small></div>
@@ -421,14 +452,16 @@ function renderTouch(){
 }
 function touchCard(p){
   const body=p.type==='family'?`Hi! The kids should play together soon — when are you free?`:`Hi, thinking of you. Hope you're doing well — we'd love to see you!`;
+  const cName=contactName(p);
+  const famNote=(p.type==='family'&&cName!==p.name)?` <span style="color:var(--ink-soft);font-weight:400">(${esc(p.name)})</span>`:'';
   return `<div class="person">
-    <div class="avatar" style="background:${PALETTE[p.type]}" onclick="openDetail('${p.id}')">${initials(p.name)}</div>
+    <div class="avatar" style="background:${PALETTE[p.type]}" onclick="openDetail('${p.id}')">${initials(cName)}</div>
     <div class="pmain" onclick="openDetail('${p.id}')">
-      <div class="pname">${esc(p.name)}</div>
+      <div class="pname">${esc(cName)}${famNote}</div>
       <div class="pmeta">last reached out ${fmtLast(p)} ago</div>
       <div class="tip">💬 ${discussionTip(p)}</div>
     </div>
-    <a href="${smsURL(body,p.phone)}" onclick="event.stopPropagation();logQuick('${p.id}','Texted to reconnect')" style="text-decoration:none;background:var(--sage);color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;align-self:center">Text</a>
+    <a href="${smsURL(body,contactPhone(p))}" onclick="event.stopPropagation();logQuick('${p.id}','Texted to reconnect')" style="text-decoration:none;background:var(--sage);color:#fff;padding:9px 14px;border-radius:10px;font-size:13px;font-weight:600;align-self:center">Text</a>
   </div>`;
 }
 
@@ -580,32 +613,36 @@ function openDetail(id){
   const logs=(p.logs||[]).slice().reverse();
   const thankBody=`Thank you so much — your kindness means the world to our family!`;
   const playdateBody=`Hi! The kids should get together soon — when are you free?`;
+  const cName=contactName(p);
+  const cPhone=contactPhone(p);
+  const famNote=(p.type==='family'&&cName!==p.name)?`<div class="hint" style="margin:2px 0 0">${esc(p.name)}</div>`:'';
   const c=document.getElementById('sheet-content');
   c.innerHTML=`
-    <div class="sheet-head"><h2>${esc(p.name)}</h2><button class="x" onclick="closeAll()">×</button></div>
+    <div class="sheet-head"><h2>${esc(cName)}</h2><button class="x" onclick="closeAll()">×</button></div>
     <div class="sheet-body">
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;flex-wrap:wrap">
+      ${famNote}
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;flex-wrap:wrap;margin-top:8px">
         <span class="chip ${p.type}">${TYPES[p.type]}</span>
         <span class="chip" style="background:var(--sage-soft);color:var(--sage)">Last reached out ${fmtLast(p)} ago</span>
       </div>
+      ${p.type==='family'&&(p.motherName||p.fatherName)?`<div class="hint" style="margin-top:6px">${p.motherName?'Mother: '+esc(p.motherName)+(p.motherPhone?' · '+esc(p.motherPhone):''):''}${p.motherName&&p.fatherName?'<br>':''}${p.fatherName?'Father: '+esc(p.fatherName)+(p.fatherPhone?' · '+esc(p.fatherPhone):''):''}</div>`:''}
 
       <div class="contact-row">
-        <a href="${smsURL('',p.phone)}" onclick="logQuick('${p.id}','Sent a text')">
+        <a href="${smsURL('',cPhone)}" onclick="logQuick('${p.id}','Sent a text')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.5 7.5L4 20l1-4.5A8.5 8.5 0 1 1 21 11.5z"/></svg>Text</a>
-        <a href="${smsURL(thankBody,p.phone)}" onclick="logQuick('${p.id}','Sent a thank-you')">
+        <a href="${smsURL(thankBody,cPhone)}" onclick="logQuick('${p.id}','Sent a thank-you')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7-4.5-9.5-9C1 9 2.5 5.5 6 5.5c2 0 3 1.2 4 2.5 1-1.3 2-2.5 4-2.5 3.5 0 5 3.5 3.5 6.5C19 16.5 12 21 12 21z"/></svg>Thank you</a>
-        ${p.type==='family'?`<a href="${smsURL(playdateBody,p.phone)}" onclick="logQuick('${p.id}','Proposed a playdate')">
+        ${p.type==='family'?`<a href="${smsURL(playdateBody,cPhone)}" onclick="logQuick('${p.id}','Proposed a playdate')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="2.5"/><circle cx="16" cy="9" r="2.5"/><path d="M4 19c0-2.5 1.8-4 4-4h8c2.2 0 4 1.5 4 4"/></svg>Playdate</a>`:''}
       </div>
-      <div class="contact-hint">${p.phone?'Text goes straight to '+esc(p.name.replace(/^The /,''))+'.':'No number saved — you\'ll pick '+esc(p.name.replace(/^The /,''))+' from your contacts in Messages.'}</div>
-      ${!p.phone?`<button class="btn ghost" style="margin-top:8px" onclick="closeAll();openEdit('${p.id}')">Add their number</button>`:''}
+      <div class="contact-hint">${cPhone?'Text goes straight to '+esc(cName.replace(/^The /,''))+'.':'No number saved — you\'ll pick '+esc(cName.replace(/^The /,''))+' from your contacts in Messages.'}</div>
+      ${!cPhone?`<button class="btn ghost" style="margin-top:8px" onclick="closeAll();openEdit('${p.id}')">Add their number</button>`:''}
       <button class="logbtn" style="margin-top:10px;border-style:solid;background:var(--card);color:var(--ink)" onclick="saveToContacts('${p.id}')">📇 Save to phone contacts</button>
 
       <div class="tip-detail"><b>A thought for next time:</b><br>${discussionTip(p)}</div>
 
       <div style="margin-top:20px">
         <div class="kv"><span>Met</span><b>${fmtDate(p.metDate)}</b></div>
-        ${p.phone?`<div class="kv"><span>Phone</span><b>${esc(p.phone)}</b></div>`:''}
         ${p.work?`<div class="kv"><span>Work</span><b style="max-width:62%">${esc(p.work)}</b></div>`:''}
         ${p.type==='family'&&p.kids&&p.kids.length?`<div class="kv"><span>Kids</span><b>${kidsSummary(p).replace(/^\d+ kids? · /,'')} <span style="color:var(--ink-soft)">(${p.kids.length})</span></b></div>`:''}
         ${p.address?`<div class="kv"><span>Address ${p.type==='elder'?'<span style="font-size:10px;background:var(--sage-soft);color:var(--sage);padding:2px 7px;border-radius:10px;font-weight:600">for cards</span>':''}</span><b style="max-width:60%">${esc(p.address)}</b></div>`:''}
@@ -645,7 +682,7 @@ function logNote(id){
 let editingId=null,formType='family',formInts=[],formKids=[];
 function openEdit(id,prefillName,prefillPhone){
   editingId=id||null;
-  const p=id?people.find(x=>x.id===id):{name:prefillName||'',type:'family',metDate:Date.now(),work:'',phone:prefillPhone||'',address:'',kids:[],interests:[]};
+  const p=id?people.find(x=>x.id===id):{name:prefillName||'',type:'family',metDate:Date.now(),work:'',phone:prefillPhone||'',address:'',kids:[],interests:[],motherName:'',motherPhone:'',fatherName:'',fatherPhone:''};
   formType=p.type;formInts=[...p.interests];formKids=[...(p.kids||[])];
   const metStr=new Date(p.metDate||Date.now()).toISOString().slice(0,10);
   const c=document.getElementById('sheet-content');
@@ -682,6 +719,20 @@ function openEdit(id,prefillName,prefillPhone){
         <div class="hint">Add one per child. Ages help you match families for playdates.</div>
       </div>
 
+      <div id="parents-block" style="${formType==='family'?'':'display:none'}">
+        <label>Mother <span style="font-weight:400;color:var(--ink-soft)">— optional</span></label>
+        <div class="row">
+          <input id="f-motherName" value="${(p.motherName||'').replace(/"/g,'&quot;')}" placeholder="Name">
+          <input id="f-motherPhone" value="${(p.motherPhone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="Phone">
+        </div>
+        <label>Father <span style="font-weight:400;color:var(--ink-soft)">— optional</span></label>
+        <div class="row">
+          <input id="f-fatherName" value="${(p.fatherName||'').replace(/"/g,'&quot;')}" placeholder="Name">
+          <input id="f-fatherPhone" value="${(p.fatherPhone||'').replace(/"/g,'&quot;')}" type="tel" inputmode="tel" placeholder="Phone">
+        </div>
+        <div class="hint">Fill in whichever you know. Set who's using this phone (⚙ icon, top) and Kinkeep will default to texting and reminding you about the same-gender parent.</div>
+      </div>
+
       <label>Address <span style="font-weight:400;color:var(--ink-soft)">— for thank-you cards (optional)</span></label>
       <input id="f-address" value="${(p.address||'').replace(/"/g,'&quot;')}" placeholder="e.g. 44 Linden Ave, Apt 2B">
 
@@ -698,6 +749,7 @@ function openEdit(id,prefillName,prefillPhone){
     formType=b.dataset.t;
     document.querySelectorAll('#f-type button').forEach(x=>x.classList.toggle('sel',x===b));
     document.getElementById('kids-block').style.display=formType==='family'?'':'none';
+    document.getElementById('parents-block').style.display=formType==='family'?'':'none';
   });
   document.querySelectorAll('#f-int button').forEach(b=>b.onclick=()=>{
     const i=b.dataset.i;formInts=formInts.includes(i)?formInts.filter(x=>x!==i):[...formInts,i];b.classList.toggle('sel');
@@ -725,12 +777,16 @@ async function saveForm(){
   const work=document.getElementById('f-work').value.trim();
   const address=document.getElementById('f-address').value.trim();
   const kids=formType==='family'?[...formKids]:[];
+  const motherName=document.getElementById('f-motherName').value.trim();
+  const motherPhone=document.getElementById('f-motherPhone').value.trim();
+  const fatherName=document.getElementById('f-fatherName').value.trim();
+  const fatherPhone=document.getElementById('f-fatherPhone').value.trim();
   if(editingId){
     const p=people.find(x=>x.id===editingId);
-    Object.assign(p,{name,phone,type:formType,metDate,work,address,kids,interests:[...formInts]});
+    Object.assign(p,{name,phone,type:formType,metDate,work,address,kids,interests:[...formInts],motherName,motherPhone,fatherName,fatherPhone});
     await savePerson(p);
   } else {
-    const p={id:'p'+Date.now(),name,phone,type:formType,metDate,work,address,kids,interests:[...formInts],lastContact:Date.now(),logs:[]};
+    const p={id:'p'+Date.now(),name,phone,type:formType,metDate,work,address,kids,interests:[...formInts],motherName,motherPhone,fatherName,fatherPhone,lastContact:Date.now(),logs:[]};
     people.push(p);await savePerson(p);
   }
   closeAll();render();
@@ -765,6 +821,10 @@ async function mergeIncoming(incoming){
       ex.lastContact=Math.max(ex.lastContact||0,inc.lastContact||0);
       if(inc.metDate)ex.metDate=Math.min(ex.metDate||inc.metDate,inc.metDate);
       if(!ex.phone&&inc.phone)ex.phone=inc.phone;
+      if(!ex.motherName&&inc.motherName)ex.motherName=inc.motherName;
+      if(!ex.motherPhone&&inc.motherPhone)ex.motherPhone=inc.motherPhone;
+      if(!ex.fatherName&&inc.fatherName)ex.fatherName=inc.fatherName;
+      if(!ex.fatherPhone&&inc.fatherPhone)ex.fatherPhone=inc.fatherPhone;
       if(!ex.work&&inc.work)ex.work=inc.work;
       if(!ex.address&&inc.address)ex.address=inc.address;
       if((!ex.kids||!ex.kids.length)&&inc.kids&&inc.kids.length)ex.kids=inc.kids;
@@ -778,6 +838,27 @@ async function mergeIncoming(incoming){
   });
   await saveAll();
   return {added,updated};
+}
+function openSettingsSheet(){
+  const c=document.getElementById('sheet-content');
+  c.innerHTML=`
+    <div class="sheet-head"><h2>Who's using this phone?</h2><button class="x" onclick="closeAll()">×</button></div>
+    <div class="sheet-body">
+      <p class="hint" style="margin-top:0">For families with two parents, this quietly points Kinkeep's reminders and texts toward the same-gender parent — so husbands naturally connect with fathers, wives with mothers. Nothing is hidden; both parents' info stays on every profile. Doesn't apply to elders.</p>
+      <label style="margin-top:16px">I am the…</label>
+      <div class="tagpick" id="role-pick">
+        <button data-role="father" class="${myRole==='father'?'sel':''}">Father</button>
+        <button data-role="mother" class="${myRole==='mother'?'sel':''}">Mother</button>
+        <button data-role="" class="${!myRole?'sel':''}">Not set</button>
+      </div>
+      <div class="hint">Each phone keeps its own setting — change it anytime.</div>
+      <button class="btn" onclick="closeAll();render()">Done</button>
+    </div>`;
+  document.querySelectorAll('#role-pick button').forEach(b=>b.onclick=()=>{
+    setRole(b.dataset.role||null);
+    document.querySelectorAll('#role-pick button').forEach(x=>x.classList.toggle('sel',x===b));
+  });
+  openSheet();
 }
 function openShareSheet(){
   const c=document.getElementById('sheet-content');
