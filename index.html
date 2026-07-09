@@ -187,7 +187,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--sage);}
 <script>
 const PALETTE={family:'#4a5aa0',elder:'#7A5C6E'};
 const TYPES={family:'Family',elder:'Elder'};
-const INTERESTS=['Playdates','Gives gifts','Church','Neighbors','Baking','Gardening','Music','Sports','Grandparent-age'];
+const INTERESTS=['Playdates','Gives gifts','Church','Neighbors','Baking','Gardening','Music','Sports','Investing','Grandparent-age'];
 
 let people=[];
 let gather={type:'all',interests:[],target:15,favorStale:true,tenure:'any',ageMatch:'off',selected:new Set()};
@@ -974,7 +974,7 @@ async function doImport(){
   const raw=document.getElementById('import-code').value;
   const box=document.getElementById('import-result');
   let incoming;
-  try{incoming=decodeData(raw);}catch(e){box.innerHTML=`<div class="result-msg" style="background:#fbe9df;color:var(--clay)">That code didn't read correctly. Ask her to send it again — copy the whole thing.</div>`;return;}
+  try{incoming=decodeData(raw);}catch(e){box.innerHTML=`<div class="result-msg" style="background:#fbe9df;color:var(--clay)">That code didn't read correctly. Ask them to send it again — copy the whole thing.</div>`;return;}
   const {added,updated}=await mergeIncoming(incoming);
   markShared();
   box.innerHTML=`<div class="result-msg">${added} added, ${updated} updated. Your lists are in sync.</div>`;
