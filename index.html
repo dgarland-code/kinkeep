@@ -273,6 +273,13 @@ function contactPhone(p){
   }
   return p.phone||'';
 }
+// A family only counts as "reach-out eligible" for Keep Up once we know the same-gender parent.
+// Elders are always eligible. If no role is set yet, nothing is filtered (safest default).
+function touchEligible(p){
+  if(p.type==='elder')return true;
+  if(!myRole)return true;
+  return myRole==='father' ? !!(p.fatherName&&p.fatherName.trim()) : !!(p.motherName&&p.motherName.trim());
+}
 function initials(n){const w=n.replace(/^The /,'').split(/[\s&]+/).filter(Boolean);return(w[0]?.[0]||'')+(w[1]?.[0]||'');}
 function staleThreshold(type){return type==='elder'?14:30;}
 function isStale(p){return daysSince(p.lastContact)>=staleThreshold(p.type);}
@@ -415,7 +422,12 @@ async function importContact(){
 
 // ---------- Nav ----------
 let view='people';
-function go(v){view=v;['people','touch','groups'].forEach(x=>document.getElementById('nav-'+x).classList.toggle('on',x===v));render();}
+function go(v){
+  view=v;
+  ['people','touch','groups'].forEach(x=>document.getElementById('nav-'+x).classList.toggle('on',x===v));
+  render();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 function render(){
   const app=document.getElementById('app');
   if(view==='people')app.innerHTML=renderPeople();
@@ -432,8 +444,8 @@ function lastShareDays(){
 function markShared(){try{localStorage.setItem(SHARE_TIME_KEY,String(Date.now()));}catch(e){}}
 
 function renderPeople(){
-  const quietest=people.slice().sort((a,b)=>a.lastContact-b.lastContact)[0];
-  const nudge=quietest?`<div class="nudge"><div class="dot"></div><div><b>Quietest lately: ${esc(quietest.name)}</b><p>Last reached out ${fmtLast(quietest)} ago. The Keep up tab ranks everyone by who's gone quiet longest.</p></div></div>`:'';
+  const quietest=people.filter(touchEligible).slice().sort((a,b)=>a.lastContact-b.lastContact)[0];
+  const nudge=quietest?`<div class="nudge"><div class="dot"></div><div><b>Quietest lately: ${esc(contactName(quietest))}</b><p>Last reached out ${fmtLast(quietest)} ago. The Keep up tab ranks everyone by who's gone quiet longest.</p></div></div>`:'';
   const lsd=lastShareDays();
   const backup=(people.some(p=>!p.sample))&&(lsd===null||lsd>30)?`<div class="nudge" style="background:#fdf3e3;border-color:#ecd9b0"><div class="dot" style="background:var(--amber,#C99A3E)"></div><div><b>${lsd===null?'Not backed up to your spouse\'s phone yet':'Last backed up '+lsd+' days ago'}</b><p>Tap the ⇄ icon top-right to back up to other phone — send your list, takes a minute.</p></div></div>`:'';
   const samples=people.filter(p=>p.sample).length;
@@ -480,7 +492,7 @@ function personCard(p){
 
 // ---------- Keep-up view ----------
 function renderTouch(){
-  const ranked=people.slice().sort((a,b)=>a.lastContact-b.lastContact);
+  const ranked=people.filter(touchEligible).sort((a,b)=>a.lastContact-b.lastContact);
   let html='<main>';
   html+=`<div class="sec-label">Quietest first — who you've reached out to least recently</div>`;
   if(!ranked.length)html+='<div class="empty">No one here yet.</div>';
@@ -913,7 +925,7 @@ function openSettingsSheet(){
   c.innerHTML=`
     <div class="sheet-head"><h2>Who's using this phone?</h2><button class="x" onclick="closeAll()">×</button></div>
     <div class="sheet-body">
-      <p class="hint" style="margin-top:0">For families with two parents, this quietly points Kinkeep's reminders and texts toward the same-gender parent — so husbands naturally connect with fathers, wives with mothers. Nothing is hidden; both parents' info stays on every profile. Doesn't apply to elders.</p>
+      <p class="hint" style="margin-top:0">For families with two parents, this changes what shows up on your Keep Up tab. Once set, you'll only see families where you know the same-gender parent's name — a father-user won't see mother-only families and vice versa. Elders always show for both. Nothing is deleted — every family's full profile is still visible and editable from the People tab, and switching this setting later brings hidden families right back if they qualify.</p>
       <label style="margin-top:16px">I am the…</label>
       <div class="tagpick" id="role-pick">
         <button data-role="father" class="${myRole==='father'?'sel':''}">Father</button>
